@@ -1,0 +1,90 @@
+# We are to solve the following task:
+# input: a population vector, a graph G=(V,E), desired number of districts k, population lower and upper bounds L and U
+# output: a partition of the nodes into k districts (not necessarily connected!) 
+#            each with population in [L,U] to minimize the number of "cut edges" 
+#
+# An edge {i,j} from E is cut if its endpoints i and j are assigned to different districts.
+#
+# For example, consider the 4x4 grid graph: 
+#
+#         & - & - & - &
+#         |   |   |   |
+#         & - & - & - &
+#         |   |   |   |
+#         & - & - & - &
+#         |   |   |   |
+#         & - & - & - &
+#
+# Here are two ways to split it into 4 equal-size districts:
+#
+#         &   &   &   &                & - &   & - &
+#         |   |   |   |                |   |   |   |
+#         &   &   &   &                & - &   & - &
+#         |   |   |   |                             
+#         &   &   &   &                & - &   & - &
+#         |   |   |   |                |   |   |   |
+#         &   &   &   &                & - &   & - &
+#
+#          12 cut edges                 8 cut edges
+#
+# The plan with 8 cut edges looks more compact.
+#
+
+import gurobipy as gp
+from gurobipy import GRB
+
+# Let's impose a 1% population deviation (+/- 0.5%)
+deviation = 0.01
+
+import math
+k = 3          # number of districts
+L = math.ceil((1-deviation/2)*sum(population)/k)
+U = math.floor((1+deviation/2)*sum(population)/k)
+print("Using L =",L,"and U =",U,"and k =",k)
+
+Using L = 605737 and U = 611824 and k = 3
+
+# create model 
+m = gp.Model()
+
+# create variables
+x = m.addVars(G.nodes, k, vtype=GRB.BINARY) # x[i,j] equals one when county i is assigned to district j
+y = m.addVars(G.edges, vtype=GRB.BINARY)  # y[u,v] equals one when edge {u,v} is cut
+
+
+# objective is to minimize cut edges
+m.setObjective( gp.quicksum( y[u,v] for u,v in G.edges ), GRB.MINIMIZE )
+
+# add constraints saying that each county i is assigned to one district
+m.addConstrs( gp.quicksum(x[i,j] for j in range(k)) == 1 for i in G.nodes)
+
+# add constraints saying that each district has population at least L and at most U
+m.addConstrs( gp.quicksum( population[i] * x[i,j] for i in G.nodes) >= L for j in range(k) )
+m.addConstrs( gp.quicksum( population[i] * x[i,j] for i in G.nodes) <= U for j in range(k) )
+
+# add constraints saying that edge {i,j} is cut if i is assigned to district v but j is not.
+m.addConstrs( x[i,v] - x[j,v] <= y[i,j] for i,j in G.edges for v in range(k))
+
+m.update()
+
+# solve IP model
+m.optimize()
+
+# print the number of cut edges
+print("The number of cut edges is",m.objval)
+
+# retrieve the districts and their populations
+districts = [ [i for i in G.nodes if x[i,j].x > 0.5] for j in range(k)]
+district_populations = [ sum(population[i] for i in district) for district in districts ]
+
+# print district info
+for j in range(k):
+# print("District",j,"has population",district_populations[j],"and contains counties",districts[j])
+
+# check if the districts are connected
+for j in range(k):
+    print("Is district",j,"connected?", nx.is_connected( G.subgraph( districts[j] ) 
+    
+# Is district 0 connected? True
+Is district 1 connected? True
+Is district 2 connected? True
